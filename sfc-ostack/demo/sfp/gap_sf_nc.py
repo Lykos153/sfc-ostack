@@ -123,9 +123,9 @@ def forwards_forward(recv_sock, send_sock):
             # IP total length
             ip_tlen = struct.unpack(
                 '>H', pack_arr[hd_offset + 2:hd_offset + 4])[0]
-            logger.debug(
-                'Recv a IP packet, header len: %d, total len: %d', ihl,
-                ip_tlen)
+            #logger.debug(
+            #    'Recv a IP packet, header len: %d, total len: %d', ihl,
+            #    ip_tlen)
             proto = struct.unpack(
                 '>B', pack_arr[hd_offset + 9:hd_offset + 10])[0]
             # Check if is UDP packet
@@ -142,10 +142,11 @@ def forwards_forward(recv_sock, send_sock):
                 )[0] - UDP_HDL
                 
                 udp_payload = pack_arr[udp_pl_offset:pack_len]
-                
-                timestamp[udp_payload] = recv_time
+                udp_payload_string = udp_payload.decode('utf-8', 'backslashreplace')
 
-                logger.debug('Recv data: %s, timestamp: %d', udp_payload, recv_time
+                timestamps[udp_payload_string] = recv_time
+
+                logger.debug('Recv data: %s, timestamp: %d', udp_payload_string, recv_time
                 )
                 
                 pack_arr[0:MAC_LEN] = DST_MAC_B
@@ -177,14 +178,12 @@ def backwards_forward(recv_sock, send_sock):
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
-        PL_A_LEN = 1
         CTL_IP = '192.168.12.10'
         CTL_PORT = 6666
 
         ingress_iface = 'eth1'
         egress_iface = 'eth2'
     else:
-        PL_A_LEN = sys.argv[1]
         CTL_IP = sys.argv[2]
         CTL_PORT = int(sys.argv[3])
 
