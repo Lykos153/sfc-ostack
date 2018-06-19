@@ -131,6 +131,11 @@ def forwards_forward(recv_sock, send_sock):
             # Check if is UDP packet
             if proto == 17:
                 hd_offset += ihl  # move to UDP header
+                source_port = struct.unpack('>H', pack_arr[hd_offset:hd_offset+2])[0]
+                dest_port = struct.unpack('>H', pack_arr[hd_offset+2:hd_offset+4])[0]
+                if dest_port == CTL_PORT or source_port == CTL_PORT:
+                    logger.debug("Recv CTL package. Ignoring.")
+                    continue
                 udp_pl_offset = hd_offset + UDP_HDL
                 # Set checksum to zero
                 # MARK: If the checksum is cleared to zero, then checksuming is disabled.
@@ -174,6 +179,14 @@ def backwards_forward(recv_sock, send_sock):
             pack_arr[0:MAC_LEN] = SRC_MAC_B
             send_sock.send(pack_arr[0:pack_len])
 
+def echo_listen(socket):
+    while True:
+        payload, (ip, port) = socket.recvfrom(64)
+        logger.debug('Pong %s', payload)
+        if payload.startswith(b'PING'):
+            payload = b"ACK " + payload
+            socket.sendto(payload, (ip, port))
+
 
 if __name__ == "__main__":
 
@@ -205,8 +218,11 @@ if __name__ == "__main__":
 
     # Send a ready packet to SFC manager
     ctl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    ctl_sock.bind(('', CTL_PORT))
     ctl_sock.sendto(b'ready', (CTL_IP, CTL_PORT))
-    ctl_sock.close()
+    echo_proc = multiprocessing.Process(target=echo_listen, args=(ctl_sock,))
+    echo_proc.start()
 
     fw_proc.join()
     bw_proc.join()
+    echo_proc.join()
