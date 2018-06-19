@@ -10,22 +10,19 @@ Email: xianglinks@gmail.com
 
 import binascii
 import logging
-import multiprocessing
+import multiprocessing, threading
 import socket
 import struct
 import sys
 import time
 import kodo
 
+from config import SRC_MAC, DST_MAC, BUFFER_SIZE, CTL_IP, CTL_PORT, NEXT_IP
+from config import ingress_iface, egress_iface
+
 ############
 #  Config  #
 ############
-
-# MAC address of source and destination instances in the SFC
-SRC_MAC = 'fa:16:3e:04:07:36'  # MAC of the Proxy
-DST_MAC = 'fa:16:3e:58:25:fb'
-
-BUFFER_SIZE = 8192  # bytes
 
 SRC_MAC_B = binascii.unhexlify(SRC_MAC.replace(':', ''))
 DST_MAC_B = binascii.unhexlify(DST_MAC.replace(':', ''))
@@ -187,16 +184,36 @@ def echo_listen(socket):
             payload = b"ACK " + payload
             socket.sendto(payload, (ip, port))
 
+def test_error_rate(receiver, packet_num, timeout=0.5, wait_time=0.05):
+    def wait_for_ack():
+        global received_acks
+        received_acks = 0
+        while True:
+            sock.settimeout(timeout)
+            try:
+                reply, sender = sock.recvfrom(64)
+                if sender == receiver and reply.startswith(b"ACK PING"):
+                    received_acks += 1
+            except socket.timeout:
+                pass
+            if all_sent == True:
+                return
+                
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    all_sent = False
+    ack_thread = threading.Thread(target=wait_for_ack)
+    ack_thread.start()
+    for i in range(packet_num):
+        sock.sendto("PING {}".format(i).encode('ascii'), receiver)
+        time.sleep(wait_time)
+    all_sent = True
+    ack_thread.join()
+    sock.close()
+    return 1-received_acks/packet_num
 
 if __name__ == "__main__":
 
-    if len(sys.argv) < 2:
-        CTL_IP = '192.168.12.10'
-        CTL_PORT = 6666
-
-        ingress_iface = 'eth1'
-        egress_iface = 'eth2'
-    else:
+    if len(sys.argv) >= 6:
         CTL_IP = sys.argv[2]
         CTL_PORT = int(sys.argv[3])
 
@@ -219,9 +236,12 @@ if __name__ == "__main__":
     # Send a ready packet to SFC manager
     ctl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     ctl_sock.bind(('', CTL_PORT))
-    ctl_sock.sendto(b'ready', (CTL_IP, CTL_PORT))
     echo_proc = multiprocessing.Process(target=echo_listen, args=(ctl_sock,))
     echo_proc.start()
+    
+    error_rate = test_error_rate((NEXT_IP, CTL_PORT), 50)
+    
+    ctl_sock.sendto(b'ready', (CTL_IP, CTL_PORT))
 
     fw_proc.join()
     bw_proc.join()
