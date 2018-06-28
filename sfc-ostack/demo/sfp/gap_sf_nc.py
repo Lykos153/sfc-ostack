@@ -102,7 +102,7 @@ def calc_ih_cksum(hd_b_arr):
     return ~s & 0xffff
 
 
-def forwards_forward(recv_sock, send_sock, encoder=None):
+def forwards_forward(recv_sock, send_sock, coder=None):
     """forwards_forward"""
     # Bytes array for a ethernet frame
     pack_arr = bytearray(BUFFER_SIZE)
@@ -152,15 +152,24 @@ def forwards_forward(recv_sock, send_sock, encoder=None):
                 # extract payload
                 udp_payload = pack_arr[udp_pl_offset:pack_len]
 
-                # encode if enabled
-                if encoder:
-                    assert len(udp_payload) <= SYMBOL_SIZE
-                    assert encoder.rank() < encoder.symbols()
+                if coder:
+                    if hasattr(coder, "set_const_symbol"):
+                        encoder = coder
+                        assert len(udp_payload) <= SYMBOL_SIZE
+                        assert encoder.rank() < encoder.symbols()
 
-                    logger.debug("Encoding...")
+                        logger.debug("Encoding...")
 
-                    encoder.set_const_symbol(encoder.rank(), bytes(udp_payload))
-                    udp_payload = encoder.write_payload()
+                        encoder.set_const_symbol(encoder.rank(), bytes(udp_payload))
+                        udp_payload = encoder.write_payload()
+                    elif hasattr(coder, "is_complete"):
+                        decoder = coder
+
+                        logger.debug("Decoding...")
+                        decoder.read_payload(bytes(udp_payload))
+                        udp_payload = decoder.copy_from_symbol(decoder.rank()-1)
+                    
+
                     udp_pl_len = len(udp_payload)
                     pack_len = udp_pl_offset+udp_pl_len
                     pack_arr[udp_pl_offset : pack_len] = udp_payload
@@ -267,15 +276,18 @@ if __name__ == "__main__":
    
     if coding_mode == "encode":
         enc_fac = kodo.OnTheFlyEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
-        fw_enc = enc_fac.build()
+        fw_cod = enc_fac.build()
+    elif coding_mode == "decode":
+        dec_fac = kodo.OnTheFlyDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+        fw_cod = dec_fac.build()
     else: 
-        fw_enc = None
+        fw_cod = None
 
 
     # Bind sockets and start forwards and backwards processes
     recv_sock, send_sock = bind_raw_sock_pair(ingress_iface, egress_iface)
     fw_proc = multiprocessing.Process(target=forwards_forward,
-                                      args=(recv_sock, send_sock, fw_enc))
+                                      args=(recv_sock, send_sock, fw_cod))
 
     recv_sock, send_sock = bind_raw_sock_pair(egress_iface, ingress_iface)
     bw_proc = multiprocessing.Process(target=backwards_forward,
