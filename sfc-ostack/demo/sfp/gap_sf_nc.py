@@ -19,6 +19,7 @@ import kodo
 
 from config import SRC_MAC, DST_MAC, BUFFER_SIZE, CTL_IP, CTL_PORT, NEXT_IP
 from config import ingress_iface, egress_iface
+from config import SYMBOL_SIZE, GEN_SIZE, coding_mode
 
 ############
 #  Config  #
@@ -77,10 +78,6 @@ def bind_raw_sock_pair(in_iface, out_iface):
     return (recv_sock, send_sock)
 
 
-def carry_around_add(a, b):
-    c = a + b
-    return (c & 0xffff) + (c >> 16)
-
 
 def calc_ih_cksum(hd_b_arr):
     """Calculate IP header checksum
@@ -89,7 +86,15 @@ def calc_ih_cksum(hd_b_arr):
     :para hd_b_arr: Bytes array of IP header
     :retype: int
     """
+
+    def carry_around_add(a, b):
+        c = a + b
+        return (c & 0xffff) + (c >> 16)
+
     s = 0
+    # set checksum field to zero
+    hd_b_arr[10:12] = struct.pack('>H', 0)
+
     for i in range(0, len(hd_b_arr), 2):
         a, b = struct.unpack('>2B', hd_b_arr[i:i + 2])
         w = a + (b << 8)
@@ -97,7 +102,7 @@ def calc_ih_cksum(hd_b_arr):
     return ~s & 0xffff
 
 
-def forwards_forward(recv_sock, send_sock):
+def forwards_forward(recv_sock, send_sock, encoder=None):
     """forwards_forward"""
     # Bytes array for a ethernet frame
     pack_arr = bytearray(BUFFER_SIZE)
@@ -130,8 +135,9 @@ def forwards_forward(recv_sock, send_sock):
                 hd_offset += ihl  # move to UDP header
                 source_port = struct.unpack('>H', pack_arr[hd_offset:hd_offset+2])[0]
                 dest_port = struct.unpack('>H', pack_arr[hd_offset+2:hd_offset+4])[0]
+                # filter out ctl packets
                 if dest_port == CTL_PORT or source_port == CTL_PORT:
-                    logger.debug("Recv CTL package. Ignoring.")
+                    logger.debug("Recv CTL packet. Ignoring.")
                     continue
                 udp_pl_offset = hd_offset + UDP_HDL
                 # Set checksum to zero
@@ -143,13 +149,49 @@ def forwards_forward(recv_sock, send_sock):
                     '>H', pack_arr[hd_offset + 4:hd_offset + 6]
                 )[0] - UDP_HDL
                 
+                # extract payload
                 udp_payload = pack_arr[udp_pl_offset:pack_len]
+
+                # encode if enabled
+                if encoder:
+                    assert len(udp_payload) <= SYMBOL_SIZE
+                    assert encoder.rank() < encoder.symbols()
+
+                    logger.debug("Encoding...")
+
+                    encoder.set_const_symbol(encoder.rank(), bytes(udp_payload))
+                    udp_payload = encoder.write_payload()
+                    udp_pl_len = len(udp_payload)
+                    pack_len = udp_pl_offset+udp_pl_len
+                    pack_arr[udp_pl_offset : pack_len] = udp_payload
+                    
+                    new_udp_tlen = struct.pack(
+                            '>H', (UDP_HDL + udp_pl_len)
+                    )
+                    pack_arr[hd_offset+4 : hd_offset+6] = new_udp_tlen
+
+                    hd_offset -= ihl
+
+                    new_ip_tlen = struct.pack('>H', ihl + UDP_HDL + udp_pl_len)
+                    pack_arr[hd_offset+2:hd_offset+4] = new_ip_tlen
+                    
+                    logger.debug(
+                            'Old IP header checksum: %s',
+                            binascii.hexlify(
+                                pack_arr[hd_offset+10 : hd_offset+12]
+                            ).decode()
+                    )
+                    
+                    new_iph_cksum = calc_ih_cksum(pack_arr[hd_offset : hd_offset+ihl])
+                    logger.debug('New IP header checksum %s', hex(new_iph_cksum))
+                    pack_arr[hd_offset+10 : hd_offset+12] = struct.pack('<H', new_iph_cksum)
+
+
+                # store time stamp
                 udp_payload_string = udp_payload.decode('utf-8', 'backslashreplace')
-
                 timestamps[udp_payload_string] = recv_time
+                logger.debug('Recv data: %s, timestamp: %d', udp_payload, recv_time)
 
-                logger.debug('Recv data: %s, timestamp: %d', udp_payload_string, recv_time
-                )
                 
                 pack_arr[0:MAC_LEN] = DST_MAC_B
                 send_sock.send(pack_arr[0:pack_len])
@@ -213,19 +255,27 @@ def test_error_rate(receiver, packet_num, timeout=0.5, wait_time=0.05):
 
 if __name__ == "__main__":
 
-    if len(sys.argv) >= 6:
+    if len(sys.argv) >= 7:
         CTL_IP = sys.argv[2]
         CTL_PORT = int(sys.argv[3])
 
         ingress_iface = sys.argv[4]
         egress_iface = sys.argv[5]
+        coding_mode = sys.argv[6]
 
     timestamps = dict()
-    
+   
+    if coding_mode == "encode":
+        enc_fac = kodo.OnTheFlyEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+        fw_enc = enc_fac.build()
+    else: 
+        fw_enc = None
+
+
     # Bind sockets and start forwards and backwards processes
     recv_sock, send_sock = bind_raw_sock_pair(ingress_iface, egress_iface)
     fw_proc = multiprocessing.Process(target=forwards_forward,
-                                      args=(recv_sock, send_sock))
+                                      args=(recv_sock, send_sock, fw_enc))
 
     recv_sock, send_sock = bind_raw_sock_pair(egress_iface, ingress_iface)
     bw_proc = multiprocessing.Process(target=backwards_forward,
@@ -240,6 +290,7 @@ if __name__ == "__main__":
     echo_proc.start()
     
     error_rate = test_error_rate((NEXT_IP, CTL_PORT), 50)
+    logger.debug("Error rate: {}".format(error_rate))
     
     ctl_sock.sendto(b'ready', (CTL_IP, CTL_PORT))
 
