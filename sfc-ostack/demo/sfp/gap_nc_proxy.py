@@ -4,7 +4,7 @@ import socket
 import time
 import threading
 
-PACKET_COUNT = 50
+PACKET_COUNT = 5
 PACKET_SIZE = 500
 PORT = 1234
 CTL_PORT = 6666
