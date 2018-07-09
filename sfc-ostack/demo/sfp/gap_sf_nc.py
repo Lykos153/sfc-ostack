@@ -187,6 +187,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     
                     logger.debug("Recoding...")
                     decoder.read_payload(bytes(udp_payload[COD_HDL:]))
+                    logger.debug("Rank %s", decoder.rank())
                     coded_payload = decoder.write_payload()
                     
                     udp_payload = coding_header + coded_payload
@@ -206,12 +207,15 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     if decoder.rank() <= len(decoded_symbols):
                         logger.debug("Rank didn't increase. Waiting for more packets")
                         continue
+                    logger.debug("Rank %s", decoder.rank())
                 
                     for i in range(decoder.symbols()):
                         if i not in decoded_symbols and decoder.is_symbol_uncoded(i):
+                            logger.debug("Decoding symbol %s", i)
                             decoded_symbols.append(i)
                             udp_payload = decoder.copy_from_symbol(i)
                             break
+                    logger.debug("Decoded symbols: %s", decoded_symbols)
                     packet_changed = True
                     
                 if packet_changed:
