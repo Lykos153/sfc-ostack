@@ -158,7 +158,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 
                 if coding_mode == "encode":
                     encoder = coder
-                    assert chain_position = 0
+                    assert chain_position == 0
                     assert len(udp_payload) <= SYMBOL_SIZE
                     assert encoder.rank() < encoder.symbols()
 
@@ -172,6 +172,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                                                  0, # only using one generation here
                                                  GEN_SIZE,
                                                  SYMBOL_SIZE)
+                    logger.debug("Header: %s", coding_header)
                                                  
                     udp_payload = coding_header + coded_payload
                     packet_changed = True
@@ -179,7 +180,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 elif coding_mode == "recode":
                     decoder = coder
                     coding_header = udp_payload[0:COD_HDL-1]
-                    if parse_header(coding_header) not 
+                    if parse_header(coding_header) != \
                             (*encoder_info, 0, GEN_SIZE, SYMBOL_SIZE):
                         logger.debug("Header mismatch. Dropping packet.")
                         continue
@@ -194,7 +195,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 elif coding_mode == "decode":
                     decoder = coder
                     coding_header = udp_payload[0:COD_HDL-1]
-                    if parse_header(coding_header) not 
+                    if parse_header(coding_header) != \
                             (*encoder_info, 0, GEN_SIZE, SYMBOL_SIZE):
                         logger.debug("Header mismatch. Dropping packet.")
                         continue
