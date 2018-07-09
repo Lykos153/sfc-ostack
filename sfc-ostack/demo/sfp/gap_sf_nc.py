@@ -107,7 +107,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
     """forwards_forward"""
     # Bytes array for a ethernet frame
     pack_arr = bytearray(BUFFER_SIZE)
-    if coding_mode = "decode":
+    if coding_mode == "decode":
         decoded_symbols = list()
 
     while True:
