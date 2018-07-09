@@ -160,11 +160,13 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     encoder = coder
                     assert chain_position == 0
                     assert len(udp_payload) <= SYMBOL_SIZE
-                    assert encoder.rank() < encoder.symbols()
-
-                    logger.debug("Encoding...")
-
-                    encoder.set_const_symbol(encoder.rank(), bytes(udp_payload))
+                    
+                    if encoder.rank() < encoder.symbols():
+                        logger.debug("Encoding...")
+                        encoder.set_const_symbol(encoder.rank(), bytes(udp_payload))
+                    else:
+                        logger.debug("Generation full. Sending redundancy packets")
+                        
                     coded_payload = encoder.write_payload()
                     
                     logger.debug("Building header...")
