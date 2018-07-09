@@ -156,7 +156,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 # extract payload
                 udp_payload = pack_arr[udp_pl_offset:pack_len]
                 
-                if coding_mode = "encode":
+                if coding_mode == "encode":
                     encoder = coder
                     assert chain_position = 0
                     assert len(udp_payload) <= SYMBOL_SIZE
@@ -176,7 +176,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     udp_payload = coding_header + coded_payload
                     packet_changed = True
                     
-                elif coding_mode = "recode":
+                elif coding_mode == "recode":
                     decoder = coder
                     coding_header = udp_payload[0:COD_HDL-1]
                     if parse_header(coding_header) not 
@@ -191,7 +191,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     udp_payload = coding_header + coded_payload
                     packet_changed = True
                     
-                elif coding_mode = "decode":
+                elif coding_mode == "decode":
                     decoder = coder
                     coding_header = udp_payload[0:COD_HDL-1]
                     if parse_header(coding_header) not 
