@@ -19,7 +19,7 @@ import kodo
 
 from config import SRC_MAC, DST_MAC, BUFFER_SIZE, CTL_IP, CTL_PORT, NEXT_IP
 from config import ingress_iface, egress_iface
-from config import SYMBOL_SIZE, GEN_SIZE, coding_mode
+from config import SYMBOL_SIZE, GEN_SIZE, coding_mode, chain_position
 
 ############
 #  Config  #
@@ -32,6 +32,7 @@ MAC_LEN = len(DST_MAC_B)
 # Header lengths in bytes
 ETH_HDL = 14
 UDP_HDL = 8
+COD_HDL = 4
 
 #############
 #  Logging  #
@@ -106,6 +107,8 @@ def forwards_forward(recv_sock, send_sock, coder=None):
     """forwards_forward"""
     # Bytes array for a ethernet frame
     pack_arr = bytearray(BUFFER_SIZE)
+    if coding_mode = "decode":
+        decoded_symbols = list()
 
     while True:
         pack_len = recv_sock.recv_into(pack_arr, BUFFER_SIZE)
@@ -114,6 +117,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
 
         # Header offset
         hd_offset = 0
+        packet_changed = False
 
         eth_typ = struct.unpack('>H', pack_arr[12:14])[0]
         # IPv4 packet
@@ -151,25 +155,65 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 
                 # extract payload
                 udp_payload = pack_arr[udp_pl_offset:pack_len]
+                
+                if coding_mode = "encode":
+                    encoder = coder
+                    assert chain_position = 0
+                    assert len(udp_payload) <= SYMBOL_SIZE
+                    assert encoder.rank() < encoder.symbols()
 
-                if coder:
-                    if hasattr(coder, "set_const_symbol"):
-                        encoder = coder
-                        assert len(udp_payload) <= SYMBOL_SIZE
-                        assert encoder.rank() < encoder.symbols()
+                    logger.debug("Encoding...")
 
-                        logger.debug("Encoding...")
-
-                        encoder.set_const_symbol(encoder.rank(), bytes(udp_payload))
-                        udp_payload = encoder.write_payload()
-                    elif hasattr(coder, "is_complete"):
-                        decoder = coder
-
-                        logger.debug("Decoding...")
-                        decoder.read_payload(bytes(udp_payload))
-                        udp_payload = decoder.copy_from_symbol(decoder.rank()-1)
+                    encoder.set_const_symbol(encoder.rank(), bytes(udp_payload))
+                    coded_payload = encoder.write_payload()
                     
+                    logger.debug("Building header...")
+                    coding_header = build_header(*encoder_info,
+                                                 0, # only using one generation here
+                                                 GEN_SIZE,
+                                                 SYMBOL_SIZE)
+                                                 
+                    udp_payload = coding_header + coded_payload
+                    packet_changed = True
+                    
+                elif coding_mode = "recode":
+                    decoder = coder
+                    coding_header = udp_payload[0:COD_HDL-1]
+                    if parse_header(coding_header) not 
+                            (*encoder_info, 0, GEN_SIZE, SYMBOL_SIZE):
+                        logger.debug("Header mismatch. Dropping packet.")
+                        continue
+                    
+                    logger.debug("Recoding...")
+                    decoder.read_payload(bytes(udp_payload[COD_HDL:]))
+                    coded_payload = decoder.write_payload()
+                    
+                    udp_payload = coding_header + coded_payload
+                    packet_changed = True
+                    
+                elif coding_mode = "decode":
+                    decoder = coder
+                    coding_header = udp_payload[0:COD_HDL-1]
+                    if parse_header(coding_header) not 
+                            (*encoder_info, 0, GEN_SIZE, SYMBOL_SIZE):
+                        logger.debug("Header mismatch. Dropping packet.")
+                        continue
 
+                    logger.debug("Decoding...")
+                    decoder.read_payload(bytes(udp_payload[COD_HDL:]))
+                    
+                    if decoder.rank() <= decoded_symbols:
+                        logger.debug("Rank didn't increase. Waiting for more packets")
+                        continue
+                
+                    for i in range(decoder.symbols()):
+                        if i not in decoded_symbols and decoder.is_symbol_uncoded(i):
+                            decoded_symbols.append(i)
+                            udp_payload = decoder.copy_from_symbol(i)
+                            break
+                    packet_changed = True
+                    
+                if packet_changed:
                     udp_pl_len = len(udp_payload)
                     pack_len = udp_pl_offset+udp_pl_len
                     pack_arr[udp_pl_offset : pack_len] = udp_payload
@@ -333,12 +377,13 @@ if __name__ == "__main__":
     if coding_mode == "encode":
         enc_fac = kodo.OnTheFlyEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         fw_cod = enc_fac.build()
-    elif coding_mode == "decode":
+    elif coding_mode in ("decode", "recode") :
         dec_fac = kodo.OnTheFlyDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         fw_cod = dec_fac.build()
     else: 
         fw_cod = None
 
+    encoder_info = convert_encoder(fw_cod)
 
     # Bind sockets and start forwards and backwards processes
     recv_sock, send_sock = bind_raw_sock_pair(ingress_iface, egress_iface)
