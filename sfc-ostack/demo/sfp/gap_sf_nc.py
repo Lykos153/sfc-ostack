@@ -383,10 +383,10 @@ if __name__ == "__main__":
     timestamps = dict()
    
     if coding_mode == "encode":
-        enc_fac = kodo.OnTheFlyEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+        enc_fac = kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         fw_cod = enc_fac.build()
     elif coding_mode in ("decode", "recode") :
-        dec_fac = kodo.OnTheFlyDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+        dec_fac = kodo.FullVectorDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         fw_cod = dec_fac.build()
     else: 
         fw_cod = None
