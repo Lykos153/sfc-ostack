@@ -209,12 +209,15 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                         continue
                     logger.debug("Rank %s", decoder.rank())
                 
-                    for i in range(decoder.symbols()):
+                    for i in range(GEN_SIZE):
                         if i not in decoded_symbols and decoder.is_symbol_uncoded(i):
                             logger.debug("Decoding symbol %s", i)
                             decoded_symbols.append(i)
                             udp_payload = decoder.copy_from_symbol(i)
                             break
+                    else:
+                        logger.debug("Error. Couldn't decode but rank increased")
+                        continue
                     logger.debug("Decoded symbols: %s", decoded_symbols)
                     packet_changed = True
                     
