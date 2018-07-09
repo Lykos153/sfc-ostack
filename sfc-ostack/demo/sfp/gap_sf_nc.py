@@ -203,7 +203,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     logger.debug("Decoding...")
                     decoder.read_payload(bytes(udp_payload[COD_HDL:]))
                     
-                    if decoder.rank() <= decoded_symbols:
+                    if decoder.rank() <= len(decoded_symbols):
                         logger.debug("Rank didn't increase. Waiting for more packets")
                         continue
                 
@@ -391,11 +391,7 @@ if __name__ == "__main__":
     fw_proc = multiprocessing.Process(target=forwards_forward,
                                       args=(recv_sock, send_sock, fw_cod))
 
-    recv_sock, send_sock = bind_raw_sock_pair(egress_iface, ingress_iface)
-    bw_proc = multiprocessing.Process(target=backwards_forward,
-                                      args=(recv_sock, send_sock))
     fw_proc.start()
-    bw_proc.start()
 
     # Send a ready packet to SFC manager
     ctl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -409,5 +405,4 @@ if __name__ == "__main__":
     ctl_sock.sendto(b'ready', (CTL_IP, CTL_PORT))
 
     fw_proc.join()
-    bw_proc.join()
     echo_proc.join()
