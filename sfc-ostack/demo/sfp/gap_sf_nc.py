@@ -176,16 +176,12 @@ def forwards_forward(recv_sock, send_sock, coder=None):
             coding_time = int((time.perf_counter()-recv_time)*10**6)
             logger.debug("Coding time: %d", coding_time)
             
-            udp_pl_len = len(coding_header) + len(coded_payload)
-            if probing:
-                udp_pl_len += 2
+            udp_payload = coding_header + coded_payload
+            udp_pl_len = len(udp_payload)
             update_ip_header(pack_arr, ihl, udp_pl_len)
             
             proc_time = int((time.perf_counter()-recv_time)*10**6)
             logger.debug('Process time: %d us.', proc_time)
-            if probing:
-                update_header(coding_header, proc_time=proc_time)
-            udp_payload = coding_header + coded_payload
             
             pack_len = udp_pl_offset+udp_pl_len
             pack_arr[udp_pl_offset : pack_len] = udp_payload
@@ -459,7 +455,7 @@ def convert_encoder(kodo_object):
     
 if __name__ == "__main__":
 
-    if len(sys.argv) >= 7:
+    if len(sys.argv) >= 8:
         CTL_IP = sys.argv[2]
         CTL_PORT = int(sys.argv[3])
 
