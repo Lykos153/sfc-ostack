@@ -161,35 +161,46 @@ def forwards_forward(recv_sock, send_sock, coder=None):
             assert chain_position == 0
             assert len(udp_payload) <= SYMBOL_SIZE
             
-            if encoder.rank() < encoder.symbols():
-                logger.debug("Encoding...")
-                encoder.set_const_symbol(encoder.rank(), bytes(udp_payload))
-            else:
-                logger.debug("Generation full. Sending redundancy packets")
+            logger.debug("Encoding...")
+            encoder.set_const_symbol(encoder.rank(), bytes(udp_payload))
                 
-            coded_payload = encoder.write_payload()
-            
-            logger.debug("Building header...")
-            coding_header = build_header(**encoder_info)
-            logger.debug("Header: %s", coding_header)
-                                         
-            coding_time = int((time.perf_counter()-recv_time)*10**6)
-            logger.debug("Coding time: %d", coding_time)
-            
-            udp_payload = coding_header + coded_payload
-            udp_pl_len = len(udp_payload)
-            update_ip_header(pack_arr, ihl, udp_pl_len)
-            
-            proc_time = int((time.perf_counter()-recv_time)*10**6)
-            logger.debug('Process time: %d us.', proc_time)
-            
-            pack_len = udp_pl_offset+udp_pl_len
-            pack_arr[udp_pl_offset : pack_len] = udp_payload
+            packets_to_send = 1
+            if encoder.rank() == encoder.symbols():
+                red_pkts = int(encoder_info['gen_size']*encoder_info['redundancy']/100)
+                logger.debug("Sending last packet + %d redundancy packets", red_pkts)
+                packets_to_send += red_pkts
+                
+            for i in range(packets_to_send)
+                coded_payload = encoder.write_payload()
+                
+                logger.debug("Building header...")
+                coding_header = build_header(**encoder_info)
+                logger.debug("Header: %s", coding_header)
+                                             
+                coding_time = int((time.perf_counter()-recv_time)*10**6)
+                logger.debug("Coding time: %d", coding_time)
+                
+                udp_payload = coding_header + coded_payload
+                udp_pl_len = len(udp_payload)
+                update_ip_header(pack_arr, ihl, udp_pl_len)
+                
+                proc_time = int((time.perf_counter()-recv_time)*10**6)
+                logger.debug('Process time: %d us.', proc_time)
+                
+                pack_len = udp_pl_offset+udp_pl_len
+                pack_arr[udp_pl_offset : pack_len] = udp_payload
 
-            assert pack_len <= 1400
-        
-            pack_arr[0:MAC_LEN] = DST_MAC_B
-            send_sock.send(pack_arr[0:pack_len])
+                assert pack_len <= 1400
+            
+                pack_arr[0:MAC_LEN] = DST_MAC_B
+                send_sock.send(pack_arr[0:pack_len])
+                
+                recv_time = time.perf_counter() # for multiple packets
+                
+            if encoder.rank() == encoder.symbols():
+                logger.debug("Generation full. Done.")
+                return
+            
             
             
         else:
@@ -210,32 +221,44 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 logger.debug("Recoding...")
                 decoder.read_payload(bytes(udp_payload[cod_hdl:]))
                 logger.debug("Rank %s", decoder.rank())
-                coded_payload = decoder.write_payload()
                 
-                coding_time = int((time.perf_counter()-recv_time)*10**6)
-                logger.debug("Coding time: %d", coding_time)
-                
-                update_header(coding_header, chain_position=chain_position)
-                
-                udp_pl_len = len(coding_header) + len(coded_payload)
-                if header_info['probing']:
-                    udp_pl_len += 2
-                update_ip_header(pack_arr, ihl, udp_pl_len)
-                
-                proc_time = int((time.perf_counter()-recv_time)*10**6)
-                logger.debug('Process time: %d us.', proc_time)
-                if header_info['probing']:
-                    update_header(coding_header, proc_time=proc_time)
-                udp_payload = coding_header + coded_payload
-                
-                pack_len = udp_pl_offset+udp_pl_len
-                pack_arr[udp_pl_offset : pack_len] = udp_payload
+                packets_to_send = 1
+                if decoder.rank() == decoder.symbols():
+                    red_pkts = int(header_info['gen_size']*header_info['redundancy']/100)
+                    logger.debug("Sending last packet + %d redundancy packets", red_pkts)
+                    packets_to_send += red_pkts
+                    
+                for i in range(packets_to_send):
+                    coded_payload = decoder.write_payload()
+                    
+                    coding_time = int((time.perf_counter()-recv_time)*10**6)
+                    logger.debug("Coding time: %d", coding_time)
+                    
+                    update_header(coding_header, chain_position=chain_position)
+                    
+                    udp_pl_len = len(coding_header) + len(coded_payload)
+                    if header_info['probing']:
+                        udp_pl_len += 2
+                    update_ip_header(pack_arr, ihl, udp_pl_len)
+                    
+                    proc_time = int((time.perf_counter()-recv_time)*10**6)
+                    logger.debug('Process time: %d us.', proc_time)
+                    if header_info['probing']:
+                        update_header(coding_header, proc_time=proc_time)
+                    udp_payload = coding_header + coded_payload
+                    
+                    pack_len = udp_pl_offset+udp_pl_len
+                    pack_arr[udp_pl_offset : pack_len] = udp_payload
 
-                assert pack_len <= 1400
-            
-                pack_arr[0:MAC_LEN] = DST_MAC_B
-                send_sock.send(pack_arr[0:pack_len])
+                    assert pack_len <= 1400
+                
+                    pack_arr[0:MAC_LEN] = DST_MAC_B
+                    send_sock.send(pack_arr[0:pack_len])
                             
+                if encoder.rank() == encoder.symbols():
+                    logger.debug("Generation full. Done.")
+                    return
+                
             elif coding_mode == "decode":
                 decoder = coder
 
@@ -267,10 +290,10 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 
                         decoded_symbols.append(i)
                         recv_time = time.perf_counter()
-                else:
-                    logger.debug("Error. Couldn't decode but rank increased")
-                    continue
                 logger.debug("Decoded symbols: %s", decoded_symbols)
+                if len(decoded_symbols) == decoder.symbols():
+                    logger.debug("All packets decoded. Done.")
+                    return
 
 def update_ip_header(pack_arr, ihl, udp_pl_len):
     udp_hd_offset = ETH_HDL+ihl
