@@ -258,6 +258,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     logger.debug('New IP header checksum %s', hex(new_iph_cksum))
                     pack_arr[hd_offset+10 : hd_offset+12] = struct.pack('<H', new_iph_cksum)
 
+                proc_time = int((time.perf_counter()-recv_time)*10**6)
                 logger.debug('Process time: %d us', proc_time)
 
                 assert pack_len <= 1400
