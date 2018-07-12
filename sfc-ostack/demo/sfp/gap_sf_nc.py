@@ -256,7 +256,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     
                     cksm_start_time = time.perf_counter()
                     new_iph_cksum = calc_ih_cksum(pack_arr[hd_offset : hd_offset+ihl])
-                    cksm_time = int((time.perf_counter()-cksum_start_time)*10**6)
+                    cksm_time = int((time.perf_counter()-cksm_start_time)*10**6)
                     logger.debug('New IP header checksum %s, time: %f', hex(new_iph_cksum), cksm_time)
                     pack_arr[hd_offset+10 : hd_offset+12] = struct.pack('<H', new_iph_cksum)
 
