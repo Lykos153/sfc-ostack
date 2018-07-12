@@ -32,7 +32,7 @@ MAC_LEN = len(DST_MAC_B)
 # Header lengths in bytes
 ETH_HDL = 14
 UDP_HDL = 8
-COD_HDL = 4
+COD_HDL_MAX = 22
 
 #############
 #  Logging  #
@@ -113,7 +113,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
     while True:
         pack_len = recv_sock.recv_into(pack_arr, BUFFER_SIZE)
         # MARK: Maybe too slow here
-        recv_time = time.time()
+        recv_time = time.perf_counter()
 
         # Header offset
         hd_offset = 0
@@ -170,41 +170,51 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     coded_payload = encoder.write_payload()
                     
                     logger.debug("Building header...")
-                    coding_header = build_header(*encoder_info,
-                                                 0, # only using one generation here
-                                                 GEN_SIZE,
-                                                 SYMBOL_SIZE)
+                    coding_header = build_header(**encoder_info)
                     logger.debug("Header: %s", coding_header)
                                                  
+                    proc_time = int((time.perf_counter()-recv_time)*10**6)
+                    
+                    if header_info['probing']:
+                        update_header(coding_header, proc_time=proc_time)
                     udp_payload = coding_header + coded_payload
                     packet_changed = True
                     
                 elif coding_mode == "recode":
                     decoder = coder
-                    coding_header = udp_payload[0:COD_HDL]
-                    if parse_header(coding_header) != \
-                            (*encoder_info, 0, GEN_SIZE, SYMBOL_SIZE):
+                    coding_header = udp_payload[0:COD_HDL_MAX]
+                    header_info = parse_header(coding_header)
+                    if not all(header_info[i] == encoder_info[i] for i in encoder_info):
                         logger.debug("Header mismatch. Dropping packet.")
                         continue
-                    
+                    cod_hdl = header_info['header_size']                    
+                    coding_header = udp_payload[0:cod_hdl]
+                                            
                     logger.debug("Recoding...")
-                    decoder.read_payload(bytes(udp_payload[COD_HDL:]))
+                    decoder.read_payload(bytes(udp_payload[cod_hdl:]))
                     logger.debug("Rank %s", decoder.rank())
                     coded_payload = decoder.write_payload()
                     
+                    proc_time = int((time.perf_counter()-recv_time)*10**6)
+                    
+                    update_header(coding_header, chain_position=chain_position)
+                    if header_info['probing']:
+                        update_header(coding_header, proc_time=proc_time)
                     udp_payload = coding_header + coded_payload
                     packet_changed = True
                     
                 elif coding_mode == "decode":
                     decoder = coder
-                    coding_header = udp_payload[0:COD_HDL]
-                    if parse_header(coding_header) != \
-                            (*encoder_info, 0, GEN_SIZE, SYMBOL_SIZE):
+                    coding_header = udp_payload[0:COD_HDL_MAX]
+                    header_info = parse_header(coding_header)
+                    if not all(header_info[i] == encoder_info[i] for i in encoder_info):
                         logger.debug("Header mismatch. Dropping packet.")
                         continue
+                    cod_hdl = header_info['header_size']                    
+                    coding_header = udp_payload[0:cod_hdl]
 
                     logger.debug("Decoding...")
-                    decoder.read_payload(bytes(udp_payload[COD_HDL:]))
+                    decoder.read_payload(bytes(udp_payload[cod_hdl:]))
                     
                     if decoder.rank() <= len(decoded_symbols):
                         logger.debug("Rank didn't increase. Waiting for more packets")
@@ -249,12 +259,9 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     logger.debug('New IP header checksum %s', hex(new_iph_cksum))
                     pack_arr[hd_offset+10 : hd_offset+12] = struct.pack('<H', new_iph_cksum)
 
+                logger.debug('Process time: %d us', proc_time)
 
-                # store time stamp
-                udp_payload_string = udp_payload.decode('utf-8', 'backslashreplace')
-                timestamps[udp_payload_string] = recv_time
-                logger.debug('Recv data: %s, timestamp: %d', udp_payload, recv_time)
-
+                assert pack_len <= 1400
                 
                 pack_arr[0:MAC_LEN] = DST_MAC_B
                 send_sock.send(pack_arr[0:pack_len])
@@ -316,33 +323,74 @@ def test_error_rate(receiver, packet_num, timeout=0.5, wait_time=0.05):
     sock.close()
     return 1-received_acks/packet_num
 
-def build_header(encoder, field_size, gen_seq, gen_size, symbol_len):
-    header = bytearray(4)
+def build_header(encoder, field_size, gen_seq, gen_size, symbol_len, redundancy=0, probing=False, proc_time=None):
+    if probing:
+        header = bytearray(8)
+    else:
+        header = bytearray(6)
     
     assert encoder in range(8)
     assert field_size in range(4)
     assert gen_seq in range(4)
     
-    first_byte = encoder<<4 | field_size<<2 | gen_seq
+    enc_info = encoder<<4 | field_size<<2 | gen_seq
+    hop_log = 0b10000000
+    red_prob = redundancy<<1 | bool(probing)
     
-    header = struct.pack('!BBH', first_byte, gen_size, symbol_len)
+    
+    header[0:6] = struct.pack('!BBBBH', enc_info, hop_log, gen_size,
+                            red_prob, symbol_len)
+    if probing:
+        header[6:8] = struct.pack('!H', proc_time)
     
     return header
 
-def parse_header(header):
-    first_byte, gen_size, symbol_len = struct.unpack('!BBH', header)
+def parse_header(header, get_times=False):
+    hi = dict()
+    enc_info, hop_log, hi['gen_size'], \
+        red_prob, hi['symbol_len'] = struct.unpack('!BBBBH', header[0:6])
     
-    encoder = first_byte>>4 & 0b1111
-    field_size = first_byte>>2 & 0b11
-    gen_seq = first_byte & 0b11
+    hi['encoder'] = enc_info>>4 & 0b1111
+    hi['field_size'] = enc_info>>2 & 0b11
+    hi['gen_seq'] = enc_info & 0b11
     
-    return (encoder, field_size, gen_seq, gen_size, symbol_len)
+    hi['hop_log'] = {'invalid': False, 'total_hops': 0}
+    for i in range(8):
+        hi['hop_log'][i] = bool(hop_log>>(7-i) & 0b1)
+        if hi['hop_log'][i]:
+            hi['hop_log']['total_hops'] += 1
+            if i>0 and not hi['hop_log'][i-1]:
+                hi['hop_log']['invalid'] == True
     
-def update_header(header, gen_seq=None):
-    if gen_seq:
+    hi['probing'] = red_prob&0b1
+    hi['redundancy'] = red_prob>>1
+    
+    hi['header_size'] = 6
+    
+    if hi['probing']:
+        hi['header_size'] += 2*hi['hop_log']['total_hops']
+        if get_times:
+            pattern = '!'+'H'*hi['hop_log']['total_hops']
+            hi['times'] = struct.unpack(pattern, header[6:hi['header_size']])
+    
+    return hi
+    
+def update_header(header, gen_seq=None, chain_position=None, proc_time=None):
+    if gen_seq != None:
         assert gen_seq in range(4)
-        first_byte = struct.unpack('!B', header)
+        [first_byte] = struct.unpack('!B', header[:1])
         first_byte = first_byte&0b11111100 | gen_seq
+        header[:1] = struct.pack('!B', first_byte)
+    if chain_position != None:
+        assert chain_position in range(8)
+        [hop_log] = struct.unpack('!B', header[1:2])
+        hop_log |= 0b1<<(7-chain_position)
+        header[1:2] = struct.pack('!B', hop_log)
+    if proc_time != None:
+        header.extend(struct.pack('!H', proc_time))
+        
+    return header
+        
     
     
 def convert_encoder(kodo_object):
@@ -370,7 +418,10 @@ def convert_encoder(kodo_object):
     
     [encoder] = [available_encoders[i] for i in available_encoders if name.startswith(i)]
 
-    return (encoder, field_size)
+    result = {'encoder': encoder, 'field_size': field_size}
+    result['symbol_size'] = kodo_object.symbol_size()
+    result['gen_size'] = kodo_object.symbols()
+    return result
     
 if __name__ == "__main__":
 
@@ -381,9 +432,8 @@ if __name__ == "__main__":
         ingress_iface = sys.argv[4]
         egress_iface = sys.argv[5]
         coding_mode = sys.argv[6]
+        chain_position = sys.argv[7]
 
-    timestamps = dict()
-   
     if coding_mode == "encode":
         enc_fac = kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         fw_cod = enc_fac.build()
@@ -394,6 +444,7 @@ if __name__ == "__main__":
         fw_cod = None
 
     encoder_info = convert_encoder(fw_cod)
+    encoder_info['gen_seq'] = 0
 
     # Bind sockets and start forwards and backwards processes
     recv_sock, send_sock = bind_raw_sock_pair(ingress_iface, egress_iface)
