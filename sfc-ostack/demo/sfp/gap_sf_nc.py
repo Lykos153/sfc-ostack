@@ -176,8 +176,6 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                                                  
                     proc_time = int((time.perf_counter()-recv_time)*10**6)
                     
-                    if header_info['probing']:
-                        update_header(coding_header, proc_time=proc_time)
                     udp_payload = coding_header + coded_payload
                     packet_changed = True
                     
@@ -396,7 +394,7 @@ def update_header(header, gen_seq=None, chain_position=None, proc_time=None):
     
 def convert_encoder(kodo_object):
     if not kodo_object:
-        return (0,0)
+        return {'encoder': 0, 'field_size':0, 'symbol_len':0, 'gen_size':0}
         
     name = type(kodo_object).__name__
         
@@ -420,7 +418,7 @@ def convert_encoder(kodo_object):
     [encoder] = [available_encoders[i] for i in available_encoders if name.startswith(i)]
 
     result = {'encoder': encoder, 'field_size': field_size}
-    result['symbol_size'] = kodo_object.symbol_size()
+    result['symbol_len'] = kodo_object.symbol_size()
     result['gen_size'] = kodo_object.symbols()
     return result
     
