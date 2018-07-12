@@ -201,8 +201,6 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 logger.debug("Generation full. Done.")
                 return
             
-            
-            
         else:
             coding_header = udp_payload[0:COD_HDL_MAX]
             header_info = parse_header(coding_header)
@@ -254,8 +252,10 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 
                     pack_arr[0:MAC_LEN] = DST_MAC_B
                     send_sock.send(pack_arr[0:pack_len])
+                    
+                    recv_time = time.perf_counter() # for multiple packets
                             
-                if encoder.rank() == encoder.symbols():
+                if decoder.rank() == decoder.symbols():
                     logger.debug("Generation full. Done.")
                     return
                 
