@@ -231,29 +231,10 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     
                 if packet_changed:
                     udp_pl_len = len(udp_payload)
+                    update_ip_header(pack_arr, udp_pl_len)
                     pack_len = udp_pl_offset+udp_pl_len
                     pack_arr[udp_pl_offset : pack_len] = udp_payload
                     
-                    new_udp_tlen = struct.pack(
-                            '>H', (UDP_HDL + udp_pl_len)
-                    )
-                    pack_arr[udp_hd_offset+4 : udp_hd_offset+6] = new_udp_tlen
-
-                    new_ip_tlen = struct.pack('>H', ihl + UDP_HDL + udp_pl_len)
-                    pack_arr[ETH_HDL+2:ETH_HDL+4] = new_ip_tlen
-                    
-                    logger.debug(
-                            'Old IP header checksum: %s',
-                            binascii.hexlify(
-                                pack_arr[ETH_HDL+10 : ETH_HDL+12]
-                            ).decode()
-                    )
-                    
-                    cksm_start_time = time.perf_counter()
-                    new_iph_cksum = calc_ih_cksum(pack_arr[ETH_HDL : ETH_HDL+ihl])
-                    cksm_time = int((time.perf_counter()-cksm_start_time)*10**6)
-                    logger.debug('New IP header checksum %s, time: %d', hex(new_iph_cksum), cksm_time)
-                    pack_arr[ETH_HDL+10 : ETH_HDL+12] = struct.pack('<H', new_iph_cksum)
 
                 proc_time = int((time.perf_counter()-recv_time)*10**6)
                 logger.debug('Process time: %d us.', proc_time)
@@ -262,6 +243,29 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 
                 pack_arr[0:MAC_LEN] = DST_MAC_B
                 send_sock.send(pack_arr[0:pack_len])
+
+def update_ip_header(pack_arr, new_udp_pl_len):
+    new_udp_tlen = struct.pack(
+            '>H', (UDP_HDL + udp_pl_len)
+    )
+    pack_arr[udp_hd_offset+4 : udp_hd_offset+6] = new_udp_tlen
+
+    new_ip_tlen = struct.pack('>H', ihl + UDP_HDL + udp_pl_len)
+    pack_arr[ETH_HDL+2:ETH_HDL+4] = new_ip_tlen
+
+    logger.debug(
+            'Old IP header checksum: %s',
+            binascii.hexlify(
+                pack_arr[ETH_HDL+10 : ETH_HDL+12]
+            ).decode()
+    )
+
+    cksm_start_time = time.perf_counter()
+    new_iph_cksum = calc_ih_cksum(pack_arr[ETH_HDL : ETH_HDL+ihl])
+    cksm_time = int((time.perf_counter()-cksm_start_time)*10**6)
+    logger.debug('New IP header checksum %s, time: %d', hex(new_iph_cksum), cksm_time)
+    pack_arr[ETH_HDL+10 : ETH_HDL+12] = struct.pack('<H', new_iph_cksum)
+
 
 
 def backwards_forward(recv_sock, send_sock):
