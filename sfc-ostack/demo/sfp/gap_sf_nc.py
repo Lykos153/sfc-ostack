@@ -115,42 +115,39 @@ def forwards_forward(recv_sock, send_sock, coder=None):
         # MARK: Maybe too slow here
         recv_time = time.perf_counter()
 
-        # Header offset
-        hd_offset = 0
         packet_changed = False
 
         eth_typ = struct.unpack('>H', pack_arr[12:14])[0]
         # IPv4 packet
         if eth_typ == 2048:
-            hd_offset += ETH_HDL  # move to IP header
             # Check IP version and calc header length
-            ver_ihl = struct.unpack('>B', pack_arr[hd_offset:hd_offset + 1])[0]
+            ver_ihl = struct.unpack('>B', pack_arr[ETH_HDL:ETH_HDL + 1])[0]
             ihl = 4 * int(hex(ver_ihl)[-1])
             # IP total length
             ip_tlen = struct.unpack(
-                '>H', pack_arr[hd_offset + 2:hd_offset + 4])[0]
+                '>H', pack_arr[ETH_HDL + 2:ETH_HDL + 4])[0]
             #logger.debug(
             #    'Recv a IP packet, header len: %d, total len: %d', ihl,
             #    ip_tlen)
             proto = struct.unpack(
-                '>B', pack_arr[hd_offset + 9:hd_offset + 10])[0]
+                '>B', pack_arr[ETH_HDL + 9:ETH_HDL + 10])[0]
             # Check if is UDP packet
             if proto == 17:
-                hd_offset += ihl  # move to UDP header
-                source_port = struct.unpack('>H', pack_arr[hd_offset:hd_offset+2])[0]
-                dest_port = struct.unpack('>H', pack_arr[hd_offset+2:hd_offset+4])[0]
+                udp_hd_offset += ETH_HDL+ihl  # move to UDP header
+                source_port = struct.unpack('>H', pack_arr[udp_hd_offset:udp_hd_offset+2])[0]
+                dest_port = struct.unpack('>H', pack_arr[udp_hd_offset+2:udp_hd_offset+4])[0]
                 # filter out ctl packets
                 if dest_port == CTL_PORT or source_port == CTL_PORT:
                     logger.debug("Recv CTL packet. Ignoring.")
                     continue
-                udp_pl_offset = hd_offset + UDP_HDL
+                udp_pl_offset = udp_hd_offset + UDP_HDL
                 # Set checksum to zero
                 # MARK: If the checksum is cleared to zero, then checksuming is disabled.
-                pack_arr[hd_offset + 6:hd_offset + 8] = struct.pack('>H', 0)
+                pack_arr[udp_hd_offset + 6:udp_hd_offset + 8] = struct.pack('>H', 0)
 
                 # UDP payload length
                 udp_pl_len = struct.unpack(
-                    '>H', pack_arr[hd_offset + 4:hd_offset + 6]
+                    '>H', pack_arr[udp_hd_offset + 4:udp_hd_offset + 6]
                 )[0] - UDP_HDL
                 logger.debug("UDP Payload: %s Bytes", udp_pl_len)
 
@@ -240,28 +237,26 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     new_udp_tlen = struct.pack(
                             '>H', (UDP_HDL + udp_pl_len)
                     )
-                    pack_arr[hd_offset+4 : hd_offset+6] = new_udp_tlen
-
-                    hd_offset -= ihl
+                    pack_arr[udp_hd_offset+4 : udp_hd_offset+6] = new_udp_tlen
 
                     new_ip_tlen = struct.pack('>H', ihl + UDP_HDL + udp_pl_len)
-                    pack_arr[hd_offset+2:hd_offset+4] = new_ip_tlen
+                    pack_arr[ETH_HDL+2:ETH_HDL+4] = new_ip_tlen
                     
                     logger.debug(
                             'Old IP header checksum: %s',
                             binascii.hexlify(
-                                pack_arr[hd_offset+10 : hd_offset+12]
+                                pack_arr[ETH_HDL+10 : ETH_HDL+12]
                             ).decode()
                     )
                     
                     cksm_start_time = time.perf_counter()
-                    new_iph_cksum = calc_ih_cksum(pack_arr[hd_offset : hd_offset+ihl])
+                    new_iph_cksum = calc_ih_cksum(pack_arr[ETH_HDL : ETH_HDL+ihl])
                     cksm_time = int((time.perf_counter()-cksm_start_time)*10**6)
-                    logger.debug('New IP header checksum %s, time: %f', hex(new_iph_cksum), cksm_time)
-                    pack_arr[hd_offset+10 : hd_offset+12] = struct.pack('<H', new_iph_cksum)
+                    logger.debug('New IP header checksum %s, time: %d', hex(new_iph_cksum), cksm_time)
+                    pack_arr[ETH_HDL+10 : ETH_HDL+12] = struct.pack('<H', new_iph_cksum)
 
                 proc_time = int((time.perf_counter()-recv_time)*10**6)
-                logger.debug('Process time: %d us. Coding:', proc_time)
+                logger.debug('Process time: %d us.', proc_time)
 
                 assert pack_len <= 1400
                 
