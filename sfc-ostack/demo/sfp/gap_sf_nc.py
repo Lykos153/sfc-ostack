@@ -244,7 +244,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 pack_arr[0:MAC_LEN] = DST_MAC_B
                 send_sock.send(pack_arr[0:pack_len])
 
-def update_ip_header(pack_arr, new_udp_pl_len):
+def update_ip_header(pack_arr, udp_pl_len):
     new_udp_tlen = struct.pack(
             '>H', (UDP_HDL + udp_pl_len)
     )
