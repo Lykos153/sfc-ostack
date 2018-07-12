@@ -174,63 +174,61 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     coding_header = build_header(**encoder_info)
                     logger.debug("Header: %s", coding_header)
                                                  
-                    proc_time = int((time.perf_counter()-recv_time)*10**6)
+                    coding_time = int((time.perf_counter()-recv_time)*10**6)
                     
                     udp_payload = coding_header + coded_payload
                     packet_changed = True
                     
-                elif coding_mode == "recode":
-                    decoder = coder
+                else:
                     coding_header = udp_payload[0:COD_HDL_MAX]
                     header_info = parse_header(coding_header)
                     if not all(header_info[i] == encoder_info[i] for i in encoder_info):
                         logger.debug("Header mismatch. Dropping packet.")
                         continue
-                    cod_hdl = header_info['header_size']                    
-                    coding_header = udp_payload[0:cod_hdl]
-                                            
-                    logger.debug("Recoding...")
-                    decoder.read_payload(bytes(udp_payload[cod_hdl:]))
-                    logger.debug("Rank %s", decoder.rank())
-                    coded_payload = decoder.write_payload()
-                    
-                    proc_time = int((time.perf_counter()-recv_time)*10**6)
-                    
-                    update_header(coding_header, chain_position=chain_position)
-                    if header_info['probing']:
-                        update_header(coding_header, proc_time=proc_time)
-                    udp_payload = coding_header + coded_payload
-                    packet_changed = True
-                    
-                elif coding_mode == "decode":
-                    decoder = coder
-                    coding_header = udp_payload[0:COD_HDL_MAX]
-                    header_info = parse_header(coding_header)
-                    if not all(header_info[i] == encoder_info[i] for i in encoder_info):
-                        logger.debug("Header mismatch. Dropping packet.")
+                    if header_info['hop_log']['invalid']:
+                        logger.debug("Hop log invalid. Dropping packet.")
                         continue
-                    cod_hdl = header_info['header_size']                    
-                    coding_header = udp_payload[0:cod_hdl]
+                    cod_hdl = header_info['header_size']       
+                    coding_header = udp_payload[0:cod_hdl]  
+                    
+                    if coding_mode == "recode":     
+                        decoder = coder      
+                                                
+                        logger.debug("Recoding...")
+                        decoder.read_payload(bytes(udp_payload[cod_hdl:]))
+                        logger.debug("Rank %s", decoder.rank())
+                        coded_payload = decoder.write_payload()
+                        
+                        coding_time = int((time.perf_counter()-recv_time)*10**6)
+                        
+                        update_header(coding_header, chain_position=chain_position)
+                        if header_info['probing']:
+                            update_header(coding_header, proc_time=proc_time)
+                        udp_payload = coding_header + coded_payload
+                        packet_changed = True
+                        
+                    elif coding_mode == "decode":
+                        decoder = coder
 
-                    logger.debug("Decoding...")
-                    decoder.read_payload(bytes(udp_payload[cod_hdl:]))
+                        logger.debug("Decoding...")
+                        decoder.read_payload(bytes(udp_payload[cod_hdl:]))
+                        
+                        if decoder.rank() <= len(decoded_symbols):
+                            logger.debug("Rank didn't increase. Waiting for more packets")
+                            continue
+                        logger.debug("Rank %s", decoder.rank())
                     
-                    if decoder.rank() <= len(decoded_symbols):
-                        logger.debug("Rank didn't increase. Waiting for more packets")
-                        continue
-                    logger.debug("Rank %s", decoder.rank())
-                
-                    for i in range(GEN_SIZE):
-                        if i not in decoded_symbols and decoder.is_symbol_uncoded(i):
-                            logger.debug("Decoding symbol %s", i)
-                            decoded_symbols.append(i)
-                            udp_payload = decoder.copy_from_symbol(i)
-                            break
-                    else:
-                        logger.debug("Error. Couldn't decode but rank increased")
-                        continue
-                    logger.debug("Decoded symbols: %s", decoded_symbols)
-                    packet_changed = True
+                        for i in range(GEN_SIZE):
+                            if i not in decoded_symbols and decoder.is_symbol_uncoded(i):
+                                logger.debug("Decoding symbol %s", i)
+                                decoded_symbols.append(i)
+                                udp_payload = decoder.copy_from_symbol(i)
+                                break
+                        else:
+                            logger.debug("Error. Couldn't decode but rank increased")
+                            continue
+                        logger.debug("Decoded symbols: %s", decoded_symbols)
+                        packet_changed = True
                     
                 if packet_changed:
                     udp_pl_len = len(udp_payload)
@@ -254,12 +252,14 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                             ).decode()
                     )
                     
+                    cksm_start_time = time.perf_counter()
                     new_iph_cksum = calc_ih_cksum(pack_arr[hd_offset : hd_offset+ihl])
-                    logger.debug('New IP header checksum %s', hex(new_iph_cksum))
+                    cksm_time = time.perf_counter()-cksm_start_time
+                    logger.debug('New IP header checksum %s, time: %f', hex(new_iph_cksum), cksm_time)
                     pack_arr[hd_offset+10 : hd_offset+12] = struct.pack('<H', new_iph_cksum)
 
                 proc_time = int((time.perf_counter()-recv_time)*10**6)
-                logger.debug('Process time: %d us', proc_time)
+                logger.debug('Process time: %d us. Coding:', proc_time)
 
                 assert pack_len <= 1400
                 
