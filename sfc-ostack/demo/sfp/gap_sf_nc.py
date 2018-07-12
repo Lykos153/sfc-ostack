@@ -152,9 +152,10 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 udp_pl_len = struct.unpack(
                     '>H', pack_arr[hd_offset + 4:hd_offset + 6]
                 )[0] - UDP_HDL
-                
+                logger.debug("UDP Payload: %s Bytes", udp_pl_len)
+
                 # extract payload
-                udp_payload = pack_arr[udp_pl_offset:pack_len]
+                udp_payload = pack_arr[udp_pl_offset:udp_pl_offset+udp_pl_len]
                 
                 if coding_mode == "encode":
                     encoder = coder
