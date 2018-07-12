@@ -175,6 +175,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     logger.debug("Header: %s", coding_header)
                                                  
                     coding_time = int((time.perf_counter()-recv_time)*10**6)
+                    logger.debug("Coding time: %d", coding_time)
                     
                     udp_payload = coding_header + coded_payload
                     packet_changed = True
@@ -200,6 +201,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                         coded_payload = decoder.write_payload()
                         
                         coding_time = int((time.perf_counter()-recv_time)*10**6)
+                        logger.debug("Coding time: %d", coding_time)
                         
                         update_header(coding_header, chain_position=chain_position)
                         if header_info['probing']:
