@@ -133,7 +133,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 '>B', pack_arr[ETH_HDL + 9:ETH_HDL + 10])[0]
             # Check if is UDP packet
             if proto == 17:
-                udp_hd_offset += ETH_HDL+ihl  # move to UDP header
+                udp_hd_offset = ETH_HDL+ihl  # move to UDP header
                 source_port = struct.unpack('>H', pack_arr[udp_hd_offset:udp_hd_offset+2])[0]
                 dest_port = struct.unpack('>H', pack_arr[udp_hd_offset+2:udp_hd_offset+4])[0]
                 # filter out ctl packets
