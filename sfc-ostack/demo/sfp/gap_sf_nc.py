@@ -166,15 +166,15 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 
             packets_to_send = 1
             if encoder.rank() == encoder.symbols():
-                red_pkts = int(encoder_info['gen_size']*encoder_info['redundancy']/100)
+                red_pkts = max(2, int(encoder_info['gen_size']*redundancy/100))
                 logger.debug("Sending last packet + %d redundancy packets", red_pkts)
                 packets_to_send += red_pkts
                 
-            for i in range(packets_to_send)
+            for i in range(packets_to_send):
                 coded_payload = encoder.write_payload()
                 
                 logger.debug("Building header...")
-                coding_header = build_header(**encoder_info)
+                coding_header = build_header(**encoder_info, redundancy=redundancy)
                 logger.debug("Header: %s", coding_header)
                                              
                 coding_time = int((time.perf_counter()-recv_time)*10**6)
@@ -224,7 +224,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 
                 packets_to_send = 1
                 if decoder.rank() == decoder.symbols():
-                    red_pkts = int(header_info['gen_size']*header_info['redundancy']/100)
+                    red_pkts = max(2, int(header_info['gen_size']*header_info['redundancy']/100))
                     logger.debug("Sending last packet + %d redundancy packets", red_pkts)
                     packets_to_send += red_pkts
                     
@@ -490,6 +490,7 @@ if __name__ == "__main__":
     if coding_mode == "encode":
         enc_fac = kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         fw_cod = enc_fac.build()
+        redundancy = 10
     elif coding_mode in ("decode", "recode") :
         dec_fac = kodo.FullVectorDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         fw_cod = dec_fac.build()
