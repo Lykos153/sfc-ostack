@@ -198,7 +198,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 recv_time = time.perf_counter() # for multiple packets
                 
             if encoder.rank() == encoder.symbols():
-                logger.debug("Generation full. Done.")
+                logger.info("Generation full. Done.")
                 return
             
         else:
@@ -210,7 +210,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
             if header_info['hop_log']['invalid']:
                 logger.debug("Hop log invalid. Dropping packet.")
                 continue
-            cod_hdl = header_info['header_size']     
+            cod_hdl = header_info['header_size']   
             coding_header = udp_payload[0:cod_hdl]
             
             if coding_mode == "recode":     
@@ -256,7 +256,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     recv_time = time.perf_counter() # for multiple packets
                             
                 if decoder.rank() == decoder.symbols():
-                    logger.debug("Generation full. Done.")
+                    logger.info("Generation full. Done.")
                     return
                 
             elif coding_mode == "decode":
@@ -292,7 +292,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                         recv_time = time.perf_counter()
                 logger.debug("Decoded symbols: %s", decoded_symbols)
                 if len(decoded_symbols) == decoder.symbols():
-                    logger.debug("All packets decoded. Done.")
+                    logger.info("All packets decoded. Done.")
                     return
 
 def update_ip_header(pack_arr, ihl, udp_pl_len):
@@ -317,29 +317,6 @@ def update_ip_header(pack_arr, ihl, udp_pl_len):
     cksm_time = int((time.perf_counter()-cksm_start_time)*10**6)
     logger.debug('New IP header checksum %s, time: %d', hex(new_iph_cksum), cksm_time)
     pack_arr[ETH_HDL+10 : ETH_HDL+12] = struct.pack('<H', new_iph_cksum)
-
-
-
-def backwards_forward(recv_sock, send_sock):
-    """backwards_forward"""
-
-    pack_arr = bytearray(BUFFER_SIZE)
-
-    while True:
-        pack_len = recv_sock.recv_into(pack_arr, BUFFER_SIZE)
-
-        # Check if this is a forwards packet
-        cur_dst_mac_b = pack_arr[0:MAC_LEN]
-        if cur_dst_mac_b == DST_MAC_B:
-            logger.debug(
-                'Recv a forwards packet, doing nothing, just send out...')
-            continue
-        else:
-            logger.debug(
-                'Recv a backwards packet, send to %s' % ingress_iface
-            )
-            pack_arr[0:MAC_LEN] = SRC_MAC_B
-            send_sock.send(pack_arr[0:pack_len])
 
 def echo_listen(socket):
     while True:
