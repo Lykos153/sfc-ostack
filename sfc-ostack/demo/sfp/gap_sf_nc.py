@@ -245,7 +245,6 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 decoder = factory.build()
             
             if coding_mode == "recode":     
-                decoder = coder
                                         
                 logger.debug("Recoding...")
                 decoder.read_payload(bytes(udp_payload[cod_hdl:]))
@@ -292,7 +291,6 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                     logger.info("Generation full.")
                 
             elif coding_mode == "decode":
-                decoder = coder
 
                 logger.debug("Decoding...")
                 decoder.read_payload(bytes(udp_payload[cod_hdl:]))
