@@ -220,7 +220,8 @@ def forwards_forward(recv_sock, send_sock, coder=None):
             if header_info['hop_log']['invalid']:
                 logger.debug("Hop log invalid. Dropping packet.")
                 continue
-            cod_hdl = header_info['header_size']   
+            cod_hdl = header_info['header_size']
+            logger.debug("Coding header length: %s", cod_hdl)
             coding_header = udp_payload[0:cod_hdl]
             
             if coding_mode == "recode":     
