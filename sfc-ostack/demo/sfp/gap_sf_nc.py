@@ -208,7 +208,9 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 pack_len = udp_pl_offset+udp_pl_len
                 pack_arr[udp_pl_offset : pack_len] = udp_payload
 
-                assert pack_len <= 1400
+                if pack_len-ETH_HDL >= 1450:
+                    logger.error("Packet too big: %s. Not sending.", pack_len-ETH_HDL)
+                    continue
             
                 pack_arr[0:MAC_LEN] = DST_MAC_B
                 send_sock.send(pack_arr[0:pack_len])
@@ -277,7 +279,9 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                     pack_len = udp_pl_offset+udp_pl_len
                     pack_arr[udp_pl_offset : pack_len] = udp_payload
 
-                    assert pack_len <= 1400
+                    if pack_len-ETH_HDL >= 1450:
+                        logger.error("Packet too big: %s. Not sending.", pack_len-ETH_HDL)
+                        continue
                 
                     pack_arr[0:MAC_LEN] = DST_MAC_B
                     send_sock.send(pack_arr[0:pack_len])
@@ -317,7 +321,9 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                         pack_len = udp_pl_offset+udp_pl_len
                         pack_arr[udp_pl_offset : pack_len] = udp_payload
 
-                        assert pack_len <= 1400
+                        if pack_len-ETH_HDL >= 1450:
+                            logger.error("Packet too big: %s. Not sending.", pack_len-ETH_HDL)
+                            continue
                     
                         pack_arr[0:MAC_LEN] = DST_MAC_B
                         send_sock.send(pack_arr[0:pack_len])
