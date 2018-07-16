@@ -241,6 +241,7 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 logger.info("Packet from new generation arrived. Resetting decoder.")
                 decoder = None
                 current_generation = header_info['gen_seq']
+                decoded_symbols = []
                 logger.debug("Generation sequence number: %s", current_generation)
             if not decoder:
                 decoder = factory.build()
