@@ -221,6 +221,7 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 logger.info("Generation full. Resetting encoder.")
                 encoder = None
                 current_generation = (current_generation+1)%4
+                decoded_symbols = []
                 logger.debug("Generation sequence number: %s", current_generation)
             
         else:
