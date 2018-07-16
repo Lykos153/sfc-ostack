@@ -220,7 +220,6 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 encoder = None
                 current_generation = (current_generation+1)%4
                 logger.debug("Generation sequence number: %s", current_generation)
-                return
             
         else:
             coding_header = udp_payload[0:COD_HDL_MAX]
@@ -239,6 +238,7 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 logger.info("Packet from new generation arrived. Resetting decoder.")
                 decoder = None
                 current_generation = header_info['gen_seq']
+                logger.debug("Generation sequence number: %s", current_generation)
             if not decoder:
                 decoder = factory.build()
             
@@ -285,8 +285,7 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                     recv_time = time.perf_counter() # for multiple packets
                             
                 if decoder.rank() == decoder.symbols():
-                    logger.info("Generation full. Done.")
-                    return
+                    logger.info("Generation full.")
                 
             elif coding_mode == "decode":
                 decoder = coder
@@ -334,8 +333,6 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                             jsonl_file.write(json.dumps(time_log))
                             jsonl_file.write('\n')
                     
-                    logger.info("Done.")
-                    return
 
 def update_ip_header(pack_arr, ihl, udp_pl_len):
     udp_hd_offset = ETH_HDL+ihl
