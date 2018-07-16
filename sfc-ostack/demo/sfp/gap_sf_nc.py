@@ -21,7 +21,7 @@ import json
 from config import SRC_MAC, DST_MAC, BUFFER_SIZE, CTL_IP, CTL_PORT, NEXT_IP
 from config import ingress_iface, egress_iface
 from config import SYMBOL_SIZE, GEN_SIZE, coding_mode, chain_position
-from config import monitoring_mode, JSONL_FILE_PATH
+from config import monitoring_mode, JSONL_FILE_PATH, probing_enabled
 
 ############
 #  Config  #
@@ -185,12 +185,17 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 coding_time = int((time.perf_counter()-recv_time)*10**6)
                 logger.debug("Coding time: %d", coding_time)
                 
-                udp_payload = coding_header + coded_payload
-                udp_pl_len = len(udp_payload)
+                udp_pl_len = len(coding_header) + len(coded_payload)
+                if probing_enabled:
+                    udp_pl_len += 2
                 update_ip_header(pack_arr, ihl, udp_pl_len)
                 
                 proc_time = int((time.perf_counter()-recv_time)*10**6)
                 logger.debug('Process time: %d us.', proc_time)
+                if probing_enabled:
+                    update_header(coding_header, proc_time=proc_time)
+                
+                udp_payload = coding_header + coded_payload
                 
                 pack_len = udp_pl_offset+udp_pl_len
                 pack_arr[udp_pl_offset : pack_len] = udp_payload
