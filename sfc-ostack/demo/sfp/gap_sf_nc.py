@@ -16,10 +16,12 @@ import struct
 import sys
 import time
 import kodo
+import json
 
 from config import SRC_MAC, DST_MAC, BUFFER_SIZE, CTL_IP, CTL_PORT, NEXT_IP
 from config import ingress_iface, egress_iface
 from config import SYMBOL_SIZE, GEN_SIZE, coding_mode, chain_position
+from config import monitoring_mode
 
 ############
 #  Config  #
@@ -33,6 +35,8 @@ MAC_LEN = len(DST_MAC_B)
 ETH_HDL = 14
 UDP_HDL = 8
 COD_HDL_MAX = 22
+
+TIME_LOG = 'times.jsonl'
 
 #############
 #  Logging  #
@@ -109,6 +113,8 @@ def forwards_forward(recv_sock, send_sock, coder=None):
     pack_arr = bytearray(BUFFER_SIZE)
     if coding_mode == "decode":
         decoded_symbols = list()
+    if monitoring_mode:
+        time_log = {'encoder': [], 'recoder': [], 'decoder': []}
 
     while True:
         pack_len = recv_sock.recv_into(pack_arr, BUFFER_SIZE)
@@ -203,7 +209,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
             
         else:
             coding_header = udp_payload[0:COD_HDL_MAX]
-            header_info = parse_header(coding_header)
+            header_info = parse_header(coding_header, get_times=monitoring_mode)
             if not all(header_info[i] == encoder_info[i] for i in encoder_info):
                 logger.debug("Header mismatch. Dropping packet.")
                 continue
@@ -269,6 +275,10 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     logger.debug("Rank didn't increase. Waiting for more packets")
                     continue
                 logger.debug("Rank %s", decoder.rank())
+                
+                if monitoring_mode:
+                    time_log['encoder'].append(header_info['times'][0])
+                    time_log['recoder'].append(header_info['times'][1])
             
                 for i in range(GEN_SIZE):
                     if i not in decoded_symbols and decoder.is_symbol_uncoded(i):
@@ -279,6 +289,8 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                         
                         proc_time = int((time.perf_counter()-recv_time)*10**6)
                         logger.debug('Process time: %d us.', proc_time)
+                        if monitoring_mode:
+                            time_log['decoder'].append(proc_time)
                 
                         pack_len = udp_pl_offset+udp_pl_len
                         pack_arr[udp_pl_offset : pack_len] = udp_payload
@@ -292,7 +304,14 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                         recv_time = time.perf_counter()
                 logger.debug("Decoded symbols: %s", decoded_symbols)
                 if len(decoded_symbols) == decoder.symbols():
-                    logger.info("All packets decoded. Done.")
+                    logger.info("All packets decoded.")
+                    if monitoring_mode:
+                        logger.debug("Writing time log to %s", JSONL_FILE_PATH)
+                        with open(JSONL_FILE_PATH, 'a+') as jsonl_file:
+                            jsonl_file.write(json.dumps(time_log))
+                            jsonl_file.write('\n')
+                    
+                    logger.info("Done.")
                     return
 
 def update_ip_header(pack_arr, ihl, udp_pl_len):
