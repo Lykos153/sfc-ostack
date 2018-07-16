@@ -179,8 +179,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 coded_payload = encoder.write_payload()
                 
                 logger.debug("Building header...")
-                coding_header = build_header(**encoder_info, redundancy=redundancy)
-                logger.debug("Header: %s", coding_header)
+                coding_header = build_header(**encoder_info, redundancy=redundancy, probing=probing_enabled)
                                              
                 coding_time = int((time.perf_counter()-recv_time)*10**6)
                 logger.debug("Coding time: %d", coding_time)
@@ -194,6 +193,8 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 logger.debug('Process time: %d us.', proc_time)
                 if probing_enabled:
                     update_header(coding_header, proc_time=proc_time)
+                
+                logger.debug("Header: %s", coding_header)
                 
                 udp_payload = coding_header + coded_payload
                 
@@ -377,7 +378,7 @@ def test_error_rate(receiver, packet_num, timeout=0.5, wait_time=0.05):
     return 1-received_acks/packet_num
 
 def build_header(encoder, field_size, gen_seq, gen_size, symbol_len, redundancy=0, probing=False, proc_time=None):
-    if probing:
+    if probing and proc_time:
         header = bytearray(8)
     else:
         header = bytearray(6)
@@ -393,7 +394,7 @@ def build_header(encoder, field_size, gen_seq, gen_size, symbol_len, redundancy=
     
     header[0:6] = struct.pack('!BBBBH', enc_info, hop_log, gen_size,
                             red_prob, symbol_len)
-    if probing:
+    if probing and proc_time:
         header[6:8] = struct.pack('!H', proc_time)
     
     return header
