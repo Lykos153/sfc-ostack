@@ -106,10 +106,13 @@ def calc_ih_cksum(hd_b_arr):
     return ~s & 0xffff
 
 
-def forwards_forward(recv_sock, send_sock, coder=None):
+def forwards_forward(recv_sock, send_sock, factory=None):
     """forwards_forward"""
     # Bytes array for a ethernet frame
     pack_arr = bytearray(BUFFER_SIZE)
+    current_generation = 0
+    encoder = None
+    decoder = None
     if coding_mode == "decode":
         decoded_symbols = list()
     if monitoring_mode:
@@ -162,11 +165,12 @@ def forwards_forward(recv_sock, send_sock, coder=None):
         udp_payload = pack_arr[udp_pl_offset:udp_pl_offset+udp_pl_len]
         
         if coding_mode == "encode":
-            encoder = coder
             assert chain_position == 0
             assert len(udp_payload) <= SYMBOL_SIZE
             
             logger.debug("Encoding...")
+            if not encoder:
+                encoder = factory.build()
             encoder.set_const_symbol(encoder.rank(), bytes(udp_payload))
                 
             packets_to_send = 1
@@ -179,7 +183,10 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 coded_payload = encoder.write_payload()
                 
                 logger.debug("Building header...")
-                coding_header = build_header(**encoder_info, redundancy=redundancy, probing=probing_enabled)
+                coding_header = build_header(**encoder_info,
+                                             redundancy=redundancy,
+                                             gen_seq=current_generation,
+                                             probing=probing_enabled)
                                              
                 coding_time = int((time.perf_counter()-recv_time)*10**6)
                 logger.debug("Coding time: %d", coding_time)
@@ -209,7 +216,10 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                 recv_time = time.perf_counter() # for multiple packets
                 
             if encoder.rank() == encoder.symbols():
-                logger.info("Generation full. Done.")
+                logger.info("Generation full. Resetting encoder.")
+                encoder = None
+                current_generation = (current_generation+1)%4
+                logger.debug("Generation sequence number: %s", current_generation)
                 return
             
         else:
@@ -224,6 +234,13 @@ def forwards_forward(recv_sock, send_sock, coder=None):
             cod_hdl = header_info['header_size']
             logger.debug("Coding header length: %s", cod_hdl)
             coding_header = udp_payload[0:cod_hdl]
+            
+            if header_info['gen_seq'] != current_generation:
+                logger.info("Packet from new generation arrived. Resetting decoder.")
+                decoder = None
+                current_generation = header_info['gen_seq']
+            if not decoder:
+                decoder = factory.build()
             
             if coding_mode == "recode":     
                 decoder = coder
@@ -490,22 +507,19 @@ if __name__ == "__main__":
         chain_position = sys.argv[7]
 
     if coding_mode == "encode":
-        enc_fac = kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
-        fw_cod = enc_fac.build()
+        fw_fac = kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         redundancy = 10
     elif coding_mode in ("decode", "recode") :
-        dec_fac = kodo.FullVectorDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
-        fw_cod = dec_fac.build()
+        fw_fac = kodo.FullVectorDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
     else: 
-        fw_cod = None
+        fw_fac = None
 
-    encoder_info = convert_encoder(fw_cod)
-    encoder_info['gen_seq'] = 0
+    encoder_info = convert_encoder(fw_fac)
 
     # Bind sockets and start forwards and backwards processes
     recv_sock, send_sock = bind_raw_sock_pair(ingress_iface, egress_iface)
     fw_proc = multiprocessing.Process(target=forwards_forward,
-                                      args=(recv_sock, send_sock, fw_cod))
+                                      args=(recv_sock, send_sock, fw_fac))
 
     fw_proc.start()
 
