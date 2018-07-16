@@ -21,7 +21,7 @@ import json
 from config import SRC_MAC, DST_MAC, BUFFER_SIZE, CTL_IP, CTL_PORT, NEXT_IP
 from config import ingress_iface, egress_iface
 from config import SYMBOL_SIZE, GEN_SIZE, coding_mode, chain_position
-from config import monitoring_mode
+from config import monitoring_mode, JSONL_FILE_PATH
 
 ############
 #  Config  #
@@ -36,7 +36,6 @@ ETH_HDL = 14
 UDP_HDL = 8
 COD_HDL_MAX = 22
 
-TIME_LOG = 'times.jsonl'
 
 #############
 #  Logging  #
@@ -276,7 +275,7 @@ def forwards_forward(recv_sock, send_sock, coder=None):
                     continue
                 logger.debug("Rank %s", decoder.rank())
                 
-                if monitoring_mode:
+                if monitoring_mode and header_info['probing']:
                     time_log['encoder'].append(header_info['times'][0])
                     time_log['recoder'].append(header_info['times'][1])
             
