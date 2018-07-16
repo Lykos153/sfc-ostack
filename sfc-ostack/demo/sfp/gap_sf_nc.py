@@ -297,7 +297,10 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 decoder.read_payload(bytes(udp_payload[cod_hdl:]))
                 
                 if decoder.rank() <= len(decoded_symbols):
-                    logger.debug("Rank didn't increase. Waiting for more packets")
+                    if len(decoded_symbols) == decoder.symbols():
+                        logger.debug("Generation already decoded.")
+                    else:
+                        logger.debug("Rank didn't increase. Waiting for more packets")
                     continue
                 logger.debug("Rank %s", decoder.rank())
                 
