@@ -22,6 +22,7 @@ from config import SRC_MAC, DST_MAC, BUFFER_SIZE, CTL_IP, CTL_PORT, NEXT_IP
 from config import ingress_iface, egress_iface
 from config import SYMBOL_SIZE, GEN_SIZE, coding_mode, chain_position
 from config import monitoring_mode, JSONL_FILE_PATH, probing_enabled
+from config import DECODEER_IP_REWRITE
 
 ############
 #  Config  #
@@ -221,6 +222,7 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 logger.info("Generation full. Resetting encoder.")
                 encoder = None
                 current_generation = (current_generation+1)%4
+                decoded_symbols = []
                 logger.debug("Generation sequence number: %s", current_generation)
             
         elif coding_mode == "forward":
@@ -276,6 +278,7 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 logger.info("Packet from new generation arrived. Resetting decoder.")
                 decoder = None
                 current_generation = header_info['gen_seq']
+                decoded_symbols = []
                 logger.debug("Generation sequence number: %s", current_generation)
             if not decoder:
                 decoder = factory.build()
@@ -332,7 +335,10 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 decoder.read_payload(bytes(udp_payload[cod_hdl:]))
                 
                 if decoder.rank() <= len(decoded_symbols):
-                    logger.debug("Rank didn't increase. Waiting for more packets")
+                    if len(decoded_symbols) == decoder.symbols():
+                        logger.debug("Generation already decoded.")
+                    else:
+                        logger.debug("Rank didn't increase. Waiting for more packets")
                     continue
                 logger.debug("Rank %s", decoder.rank())
                 
@@ -345,6 +351,10 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                         logger.debug("Decoding symbol %s", i)
                         udp_payload = decoder.copy_from_symbol(i)
                         udp_pl_len = len(udp_payload)
+                        
+                        if DECODER_IP_REWRITE:
+                            pack_arr[16:20] = socket.inet_aton(DECODER_IP_REWRITE)
+                        
                         update_ip_header(pack_arr, ihl, udp_pl_len)
                         
                         proc_time = int((time.perf_counter()-recv_time)*10**6)
