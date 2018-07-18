@@ -549,7 +549,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) > 2:
         encoder_decoder = sys.argv[1]
-        SYMBOL_SIZE = sys.argv[2]
+        SYMBOL_SIZE = int(sys.argv[2])
 
     if coding_mode == "encode":
         if encoder_decoder == "FullVector":
