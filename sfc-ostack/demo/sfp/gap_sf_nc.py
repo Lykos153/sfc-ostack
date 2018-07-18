@@ -573,8 +573,8 @@ if __name__ == "__main__":
     # Send a ready packet to SFC manager
     #ctl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     #ctl_sock.bind(('', CTL_PORT))
-    echo_proc = multiprocessing.Process(target=echo_listen, args=(ctl_sock,))
-    echo_proc.start()
+    #echo_proc = multiprocessing.Process(target=echo_listen, args=(ctl_sock,))
+    #echo_proc.start()
     
     #error_rate = test_error_rate((NEXT_IP, CTL_PORT), 50)
     #logger.debug("Error rate: {}".format(error_rate))
