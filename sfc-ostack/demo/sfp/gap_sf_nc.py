@@ -22,7 +22,7 @@ from config import SRC_MAC, DST_MAC, BUFFER_SIZE, CTL_IP, CTL_PORT, NEXT_IP
 from config import ingress_iface, egress_iface
 from config import SYMBOL_SIZE, GEN_SIZE, coding_mode, chain_position
 from config import monitoring_mode, JSONL_FILE_PATH, probing_enabled
-from config import DECODEER_IP_REWRITE
+from config import DECODER_IP_REWRITE
 
 ############
 #  Config  #
@@ -315,9 +315,11 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                         logger.debug("Decoding symbol %s", i)
                         udp_payload = decoder.copy_from_symbol(i)
                         udp_pl_len = len(udp_payload)
+
+                        logger.debug("Payload (%s Bytes): %s", udp_pl_len, udp_payload)
                         
                         if DECODER_IP_REWRITE:
-                            pack_arr[16:20] = socket.inet_aton(DECODER_IP_REWRITE)
+                            pack_arr[ETH_HDL+16:ETH_HDL+20] = socket.inet_aton(DECODER_IP_REWRITE)
                         
                         update_ip_header(pack_arr, ihl, udp_pl_len)
                         
