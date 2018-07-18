@@ -55,8 +55,8 @@ handler = logging.StreamHandler()
 formatter = logging.Formatter(fmt_str)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-#logger.setLevel(level['ERROR'])
-logger.setLevel(level['DEBUG'])
+logger.setLevel(level['ERROR'])
+#logger.setLevel(level['DEBUG'])
 
 
 #####################
