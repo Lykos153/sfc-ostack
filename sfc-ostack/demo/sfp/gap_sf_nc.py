@@ -18,7 +18,8 @@ import time
 import kodo
 import json
 
-from config import SRC_MAC, DST_MAC, BUFFER_SIZE, CTL_IP, CTL_PORT, NEXT_IP
+from config import SRC_MAC, DST_MAC, BUFFER_SIZE
+#from config import CTL_IP, CTL_PORT, NEXT_IP
 from config import ingress_iface, egress_iface
 from config import SYMBOL_SIZE, GEN_SIZE, coding_mode, chain_position
 from config import monitoring_mode, JSONL_FILE_PATH, probing_enabled
@@ -147,9 +148,9 @@ def forwards_forward(recv_sock, send_sock, factory=None):
         source_port = struct.unpack('>H', pack_arr[udp_hd_offset:udp_hd_offset+2])[0]
         dest_port = struct.unpack('>H', pack_arr[udp_hd_offset+2:udp_hd_offset+4])[0]
         # filter out ctl packets
-        if dest_port == CTL_PORT or source_port == CTL_PORT:
-            logger.debug("Recv CTL packet. Ignoring.")
-            continue
+        #if dest_port == CTL_PORT or source_port == CTL_PORT:
+        #    logger.debug("Recv CTL packet. Ignoring.")
+        #    continue
             
         udp_pl_offset = udp_hd_offset + UDP_HDL
         # Set checksum to zero
@@ -545,13 +546,10 @@ def convert_encoder(kodo_object):
 if __name__ == "__main__":
 
     if len(sys.argv) >= 8:
-        CTL_IP = sys.argv[2]
-        CTL_PORT = int(sys.argv[3])
-
-        ingress_iface = sys.argv[4]
-        egress_iface = sys.argv[5]
-        coding_mode = sys.argv[6]
-        chain_position = sys.argv[7]
+        ingress_iface = sys.argv[1]
+        egress_iface = sys.argv[2]
+        coding_mode = sys.argv[3]
+        chain_position = sys.argv[4]
 
     if coding_mode == "encode":
         fw_fac = kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
@@ -571,15 +569,15 @@ if __name__ == "__main__":
     fw_proc.start()
 
     # Send a ready packet to SFC manager
-    ctl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ctl_sock.bind(('', CTL_PORT))
+    #ctl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #ctl_sock.bind(('', CTL_PORT))
     echo_proc = multiprocessing.Process(target=echo_listen, args=(ctl_sock,))
     echo_proc.start()
     
-    error_rate = test_error_rate((NEXT_IP, CTL_PORT), 50)
-    logger.debug("Error rate: {}".format(error_rate))
+    #error_rate = test_error_rate((NEXT_IP, CTL_PORT), 50)
+    #logger.debug("Error rate: {}".format(error_rate))
     
-    ctl_sock.sendto(b'ready', (CTL_IP, CTL_PORT))
+    #ctl_sock.sendto(b'ready', (CTL_IP, CTL_PORT))
 
     fw_proc.join()
-    echo_proc.join()
+    #echo_proc.join()
