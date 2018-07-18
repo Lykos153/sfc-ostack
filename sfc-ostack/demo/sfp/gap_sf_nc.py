@@ -225,6 +225,42 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 decoded_symbols = []
                 logger.debug("Generation sequence number: %s", current_generation)
             
+        elif coding_mode == "forward":
+            coding_header = udp_payload[0:COD_HDL_MAX]
+            header_info = parse_header(coding_header, get_times=monitoring_mode)
+            if header_info['hop_log']['invalid']:
+                logger.debug("Hop log invalid. Dropping packet.")
+                continue
+            cod_hdl = header_info['header_size']
+            logger.debug("Coding header length: %s", cod_hdl)
+            coding_header = udp_payload[0:cod_hdl]
+            
+            logger.debug("Forwarding...")
+            coded_payload = udp_payload[cod_hdl:]
+            update_header(coding_header, chain_position=chain_position)
+            
+            udp_pl_len = len(coding_header) + len(coded_payload)
+            if header_info['probing']:
+                udp_pl_len += 2
+            update_ip_header(pack_arr, ihl, udp_pl_len)
+            
+            proc_time = int((time.perf_counter()-recv_time)*10**6)
+            logger.debug('Process time: %d us.', proc_time)
+            if header_info['probing']:
+                update_header(coding_header, proc_time=proc_time)
+            udp_payload = coding_header + coded_payload
+            
+            pack_len = udp_pl_offset+udp_pl_len
+            pack_arr[udp_pl_offset : pack_len] = udp_payload
+
+            if pack_len-ETH_HDL >= 1450:
+                logger.error("Packet too big: %s. Not sending.", pack_len-ETH_HDL)
+                continue
+            
+            pack_arr[0:MAC_LEN] = DST_MAC_B
+            send_sock.send(pack_arr[0:pack_len])
+            
+
         else:
             coding_header = udp_payload[0:COD_HDL_MAX]
             header_info = parse_header(coding_header, get_times=monitoring_mode)
@@ -246,7 +282,7 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                 logger.debug("Generation sequence number: %s", current_generation)
             if not decoder:
                 decoder = factory.build()
-            
+
             if coding_mode == "recode":     
                                         
                 logger.debug("Recoding...")
