@@ -21,7 +21,7 @@ import json
 from config import SRC_MAC, DST_MAC, BUFFER_SIZE
 #from config import CTL_IP, CTL_PORT, NEXT_IP
 from config import ingress_iface, egress_iface
-from config import SYMBOL_SIZE, GEN_SIZE, coding_mode, chain_position
+from config import SYMBOL_SIZE, GEN_SIZE
 from config import monitoring_mode, JSONL_FILE_PATH, probing_enabled
 from config import DECODER_IP_REWRITE
 
@@ -547,11 +547,9 @@ def convert_encoder(kodo_object):
     
 if __name__ == "__main__":
 
-    if len(sys.argv) >= 8:
-        ingress_iface = sys.argv[1]
-        egress_iface = sys.argv[2]
-        coding_mode = sys.argv[3]
-        chain_position = sys.argv[4]
+    if len(sys.argv) > 2:
+        coding_mode = sys.argv[1]
+        chain_position = sys.argv[2]
 
     if coding_mode == "encode":
         fw_fac = kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
