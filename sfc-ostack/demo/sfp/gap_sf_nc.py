@@ -553,14 +553,14 @@ if __name__ == "__main__":
 
     if coding_mode == "encode":
         if encoder_decoder = "FullVector":
-            fw_fac = kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+            fw_fac == kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         elif encoder_decoder = "SlidingWindow":
-            fw_fac = kodo.SlidingWindowEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+            fw_fac == kodo.SlidingWindowEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         redundancy = 10
     elif coding_mode in ("decode", "recode") :
-        if encoder_decoder = "FullVector":
+        if encoder_decoder == "FullVector":
             fw_fac = kodo.FullVectorDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
-        elif encoder_decoder = "SlidingWindow":
+        elif encoder_decoder == "SlidingWindow":
             fw_fac = kodo.SlidingWindowEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
     else:
         fw_fac = None
