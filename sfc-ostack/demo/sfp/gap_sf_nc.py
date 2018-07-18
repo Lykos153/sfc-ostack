@@ -552,10 +552,10 @@ if __name__ == "__main__":
         SYMBOL_SIZE = sys.argv[2]
 
     if coding_mode == "encode":
-        if encoder_decoder = "FullVector":
-            fw_fac == kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
-        elif encoder_decoder = "SlidingWindow":
-            fw_fac == kodo.SlidingWindowEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+        if encoder_decoder == "FullVector":
+            fw_fac = kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+        elif encoder_decoder == "SlidingWindow":
+            fw_fac = kodo.SlidingWindowEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         redundancy = 10
     elif coding_mode in ("decode", "recode") :
         if encoder_decoder == "FullVector":
