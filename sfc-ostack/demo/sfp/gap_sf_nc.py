@@ -21,7 +21,7 @@ import json
 from config import SRC_MAC, DST_MAC, BUFFER_SIZE
 #from config import CTL_IP, CTL_PORT, NEXT_IP
 from config import ingress_iface, egress_iface
-from config import SYMBOL_SIZE, GEN_SIZE
+from config import SYMBOL_SIZE, GEN_SIZE, coding_mode, chain_position
 from config import monitoring_mode, JSONL_FILE_PATH, probing_enabled
 from config import DECODER_IP_REWRITE
 
@@ -547,19 +547,27 @@ def convert_encoder(kodo_object):
     
 if __name__ == "__main__":
 
-    if len(sys.argv) > 2:
-        coding_mode = sys.argv[1]
-        chain_position = sys.argv[2]
+    if len(sys.argv) >= 8:
+        encoder_decoder = sys.argv[1]
+        SYMBOL_SIZE = sys.argv[2]
 
     if coding_mode == "encode":
-        fw_fac = kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+        if encoder_decoder = "FullVector":
+            fw_fac = kodo.FullVectorEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+        elif encoder_decoder = "SlidingWindow":
+            fw_fac = kodo.SlidingWindowEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         redundancy = 10
     elif coding_mode in ("decode", "recode") :
-        fw_fac = kodo.FullVectorDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
-    else: 
+        if encoder_decoder = "FullVector":
+            fw_fac = kodo.FullVectorDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+        elif encoder_decoder = "SlidingWindow":
+            fw_fac = kodo.SlidingWindowEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+    else:
         fw_fac = None
 
     encoder_info = convert_encoder(fw_fac)
+
+    JSONL_FILE_PATH = "dt_{}_{}_{}.jsonl".format(encoder_decoder, SYMBOL_SIZE, GEN_SIZE)
 
     # Bind sockets and start forwards and backwards processes
     recv_sock, send_sock = bind_raw_sock_pair(ingress_iface, egress_iface)
