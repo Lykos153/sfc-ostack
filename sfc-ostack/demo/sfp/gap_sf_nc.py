@@ -547,7 +547,7 @@ def convert_encoder(kodo_object):
     
 if __name__ == "__main__":
 
-    if len(sys.argv) >= 8:
+    if len(sys.argv) > 2:
         encoder_decoder = sys.argv[1]
         SYMBOL_SIZE = sys.argv[2]
 
