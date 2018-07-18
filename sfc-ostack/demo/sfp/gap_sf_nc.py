@@ -168,7 +168,8 @@ def forwards_forward(recv_sock, send_sock, factory=None):
         
         if coding_mode == "encode":
             assert chain_position == 0
-            assert len(udp_payload) <= SYMBOL_SIZE
+            if len(udp_payload) > SYMBOL_SIZE:
+                logger.error("Packet too big. Dropping")
             
             logger.debug("Encoding...")
             if not encoder:
