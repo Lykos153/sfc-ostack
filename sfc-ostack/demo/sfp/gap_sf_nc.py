@@ -387,6 +387,7 @@ def forwards_forward(recv_sock, send_sock, factory=None):
                         with open(JSONL_FILE_PATH, 'a+') as jsonl_file:
                             jsonl_file.write(json.dumps(time_log))
                             jsonl_file.write('\n')
+                        time_log = {'encoder': [], 'recoder': [], 'decoder': []}
                     
 
 def update_ip_header(pack_arr, ihl, udp_pl_len):
