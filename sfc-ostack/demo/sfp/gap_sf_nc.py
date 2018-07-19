@@ -564,7 +564,7 @@ if __name__ == "__main__":
         if encoder_decoder == "FullVector":
             fw_fac = kodo.FullVectorDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
         elif encoder_decoder == "SlidingWindow":
-            fw_fac = kodo.SlidingWindowEncoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
+            fw_fac = kodo.SlidingWindowDecoderFactoryBinary(GEN_SIZE, SYMBOL_SIZE)
     else:
         fw_fac = None
 
