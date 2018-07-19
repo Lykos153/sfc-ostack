@@ -570,7 +570,7 @@ if __name__ == "__main__":
 
     encoder_info = convert_encoder(fw_fac)
 
-    JSONL_FILE_PATH = "dt_{}_{}_{}.jsonl".format(encoder_decoder, SYMBOL_SIZE, GEN_SIZE)
+    JSONL_FILE_PATH = "pd_{}_{}_{}.jsonl".format(encoder_decoder, SYMBOL_SIZE, GEN_SIZE)
 
     # Bind sockets and start forwards and backwards processes
     recv_sock, send_sock = bind_raw_sock_pair(ingress_iface, egress_iface)
